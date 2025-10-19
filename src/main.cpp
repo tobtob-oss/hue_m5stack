@@ -9,26 +9,19 @@
 WiFiClient wifi;
 HttpClient client = HttpClient(wifi, MOOD_SERVER_IP, MOOD_SERVER_PORT); 
 
-// Room and Mood lists
-String rooms[20];  // Array to hold room names (max 20)
-int roomCount = 0;
-
 String moods[20];  // Array to hold mood names (max 20)
 int moodCount = 0;
 
 // Menu state variables
-enum MenuMode { ROOM_SELECTION, MOOD_SELECTION };
-MenuMode currentMode = ROOM_SELECTION;
-int currentRoomIndex = 0;
+enum MenuMode { MOOD_SELECTION };
+MenuMode currentMode = MOOD_SELECTION;
 int currentMoodIndex = 0;
-String selectedRoom = "";
 String selectedMood = "";
 
 // Function declarations
 void displayMenu();
-void sendMoodCommand( String room, String mood );
+void sendMoodCommand( String mood );
 void getAllMoods();
-void getAllRooms();
 
 void setup(void)
 {
@@ -58,13 +51,7 @@ void setup(void)
 
   M5.Display.println("HTTP configured");
   M5.delay(1000);
-  
-  // Get rooms from server
-  M5.Display.println("Getting rooms...");
-  getAllRooms();
-  M5.Display.printf("Loaded %d rooms\n", roomCount);
-  M5.delay(1000);
-  
+ 
   // Get moods from server
   M5.Display.println("Getting moods...");
   getAllMoods();
@@ -84,12 +71,7 @@ void loop(void)
 
   // Button A - Scroll Left (Previous item)
   if (M5.BtnA.wasClicked()) {
-    if (currentMode == ROOM_SELECTION) {
-      currentRoomIndex--;
-      if (currentRoomIndex < 0) {
-        currentRoomIndex = roomCount - 1;  // Wrap to last item
-      }
-    } else {  // MOOD_SELECTION
+    if (currentMode == MOOD_SELECTION) {
       currentMoodIndex--;
       if (currentMoodIndex < 0) {
         currentMoodIndex = moodCount - 1;  // Wrap to last item
@@ -100,44 +82,25 @@ void loop(void)
 
   // Button B - Select current item
   if (M5.BtnB.wasClicked()) {
-    if (currentMode == ROOM_SELECTION) {
-      // Select room and move to mood selection
-      selectedRoom = rooms[currentRoomIndex];
-      currentMode = MOOD_SELECTION;
-      currentMoodIndex = 0;  // Reset to first mood
-      M5_LOGI("Room selected: %s", selectedRoom.c_str());
-    } else {  // MOOD_SELECTION
+    if (currentMode == MOOD_SELECTION) {
+      // MOOD_SELECTION
       // Select mood and trigger API call
       selectedMood = moods[currentMoodIndex];
       M5_LOGI("Mood selected: %s", selectedMood.c_str());
       
       // TODO: Send REST API call with selected room and mood
-      sendMoodCommand(selectedRoom, selectedMood);
-      
-      // Show confirmation
-      M5.Display.clear();
-      M5.Display.setCursor(10, 60);
-      M5.Display.println("Sent:");
-      M5.Display.setCursor(10, 90);
-      M5.Display.printf("%s\n", selectedRoom.c_str());
-      M5.Display.setCursor(10, 120);
-      M5.Display.printf("%s\n", selectedMood.c_str());
-      M5.delay(2000);
-      
-      // Return to room selection
-      currentMode = ROOM_SELECTION;
+      sendMoodCommand(selectedMood);
+
+      // Return to mood selection
+      currentMode = MOOD_SELECTION;
       displayMenu();
     }
   }
 
   // Button C - Scroll Right (Next item)
   if (M5.BtnC.wasClicked()) {
-    if (currentMode == ROOM_SELECTION) {
-      currentRoomIndex++;
-      if (currentRoomIndex >= roomCount) {
-        currentRoomIndex = 0;  // Wrap to first item
-      }
-    } else {  // MOOD_SELECTION
+    if (currentMode == MOOD_SELECTION) {
+      // MOOD_SELECTION
       currentMoodIndex++;
       if (currentMoodIndex >= moodCount) {
         currentMoodIndex = 0;  // Wrap to first item
@@ -154,21 +117,12 @@ void displayMenu() {
   
   // Display mode indicator at top
   M5.Display.setCursor(10, 10);
-  if (currentMode == ROOM_SELECTION) {
-    M5.Display.setTextColor(TFT_CYAN);
-    M5.Display.println("SELECT ROOM:");
-    M5.Display.setTextColor(TFT_WHITE);
-  } else {
+  if (currentMode == MOOD_SELECTION) {
     M5.Display.setTextColor(TFT_YELLOW);
     M5.Display.println("SELECT MOOD:");
     M5.Display.setTextColor(TFT_WHITE);
-    // Show selected room at top
-    M5.Display.setTextSize(2);
-    M5.Display.setCursor(10, 35);
-    M5.Display.printf("Room: %s", selectedRoom.c_str());
-    M5.Display.setTextSize(2);
   }
-  
+
 
   // Display navigation arrows and current item
   int centerY = 100;
@@ -177,9 +131,7 @@ void displayMenu() {
 
   M5.Display.setCursor(30, centerY);  // Center horizontally
   M5.Display.setTextColor(TFT_GREEN);
-  if (currentMode == ROOM_SELECTION) {
-    M5.Display.print(rooms[currentRoomIndex]);
-  } else {
+  if (currentMode == MOOD_SELECTION) {
     M5.Display.print(moods[currentMoodIndex]);
   }
   M5.Display.setTextColor(TFT_WHITE);
@@ -236,51 +188,8 @@ void getAllMoods() {
   M5_LOGI("Total moods loaded: %d", moodCount);
 }
 
-void getAllRooms() {
-  M5_LOGI("Fetching rooms from server...");
-  
-  // Make HTTP GET request to /rooms endpoint
-  client.beginRequest();
-  client.get("/rooms");
-  client.endRequest();
-  
-  int statusCode = client.responseStatusCode();
-  String response = client.responseBody();
-  
-  M5_LOGI("Rooms response - Status: %d", statusCode);
-  
-  if (statusCode != 200) {
-    M5_LOGE("Failed to get rooms: %d", statusCode);
-    M5_LOGE("Response: %s", response.c_str());
-    return;
-  }
-  
-  // Parse JSON response
-  JsonDocument doc;
-  DeserializationError error = deserializeJson(doc, response);  
-  if (error) {
-    M5_LOGE("JSON parsing failed: %s", error.c_str());
-    return;
-  }
-
-  // Extract room names and IDs from JSON array
-  JsonArray roomsArray = doc.as<JsonArray>();
-  roomCount = 0;
-  
-  for (JsonObject roomObj : roomsArray) {
-    if (roomCount < 20) {  // Max 20 rooms
-      String roomName = roomObj["name"].as<String>();
-      rooms[roomCount] = roomName;
-      M5_LOGI("Loaded room %d: %s", roomCount, roomName.c_str());
-      roomCount++;
-    }
-  }
-  
-  M5_LOGI("Total rooms loaded: %d", roomCount);
-}
-
-void sendMoodCommand( String room, String mood ) {
-  M5_LOGI("Sending mood command - Room: %s, Mood: %s", room.c_str(), mood.c_str());
+void sendMoodCommand( String mood ) {
+  M5_LOGI("Sending mood command: %s", mood.c_str());
   
   // Construct JSON body
   JsonDocument doc;
