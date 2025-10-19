@@ -1,9 +1,5 @@
 #include <M5Unified.h>
-#define WIFI_SSID "******"
-#define WIFI_PASS "*********"
-#define MOOD_SERVER_IP "192.168.0.15"
-#define MOOD_SERVER_PORT 8866
-
+#include "config.h"
 
 #include <WiFi.h>
 #include <WiFiClient.h>

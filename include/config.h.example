@@ -1,0 +1,12 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// WiFi Configuration
+#define WIFI_SSID "your_wifi_ssid"
+#define WIFI_PASS "your_wifi_password"
+
+// Server Configuration
+#define MOOD_SERVER_IP "192.168.0.x"
+#define MOOD_SERVER_PORT 8866
+
+#endif // CONFIG_H
